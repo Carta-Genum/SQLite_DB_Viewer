@@ -1,0 +1,18 @@
+# =============================================================================
+# stdb-viewer — Requirements
+# =============================================================================
+#
+# The core viewer has ZERO external dependencies (Python 3.8+ stdlib only).
+# The packages below are optional, for development and testing.
+#
+
+# ---- Testing ----
+pytest>=7.0
+pytest-cov>=4.0
+
+# ---- Linting (optional) ----
+# ruff>=0.4
+# mypy>=1.0
+
+# ---- Deployment (optional) ----
+# gunicorn>=21.0        # if you want a production WSGI server
