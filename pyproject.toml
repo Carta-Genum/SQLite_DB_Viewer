@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stdb-viewer"
+version = "0.1.0"
+description = "A lightweight SQLite database browser with faceted filtering"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+# No dependencies — stdlib only
+
+[project.scripts]
+stdb-viewer = "stdb_viewer.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["stdb_viewer*"]
+
+[tool.setuptools.package-data]
+stdb_viewer = [
+    "templates/*.html",
+    "static/css/*.css",
+    "static/js/*.js",
+]

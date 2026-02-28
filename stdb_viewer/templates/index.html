@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spatial Transcriptomics DB Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Spatial Transcriptomics DB</h1>
+    <select class="db-select" id="dbSelect"></select>
+    <div class="header-spacer"></div>
+    <button class="theme-toggle" id="themeToggle">
+      <span class="icon"></span>
+      <span class="label"></span>
+    </button>
+    <div class="port-info" id="portInfo"></div>
+  </header>
+
+  <div class="toolbar">
+    <div class="tabs" id="tableTabs"></div>
+    <div class="search-wrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search all columns…">
+    </div>
+    <button class="btn btn-clear hide" id="clearBtn">✕ Clear filters</button>
+    <button class="btn btn-csv-selected hide" id="csvSelectedBtn">↓ Export selected</button>
+    <button class="btn btn-csv" id="csvBtn">↓ Export CSV</button>
+    <button class="btn btn-sql" id="sqlToggleBtn">⟩_ SQL Console</button>
+    <div class="meta" id="metaInfo"></div>
+  </div>
+
+  <div class="sql-console hide" id="sqlConsole">
+    <div class="sql-header">
+      <span class="sql-title">⟩_ SQL Console</span>
+      <div class="sql-header-right">
+        <span class="sql-hint">Ctrl+Enter to run · Read-only (SELECT, PRAGMA, EXPLAIN, WITH)</span>
+        <button class="btn btn-sql-close" id="sqlCloseBtn">✕</button>
+      </div>
+    </div>
+    <div class="sql-body">
+      <div class="sql-editor-wrap">
+        <textarea id="sqlInput" class="sql-input" spellcheck="false" placeholder="SELECT * FROM table_name LIMIT 100;">SELECT * FROM </textarea>
+        <button class="btn btn-sql-run" id="sqlRunBtn">▶ Run</button>
+      </div>
+      <div class="sql-results" id="sqlResults">
+        <div class="sql-placeholder">Results will appear here</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar" id="sidebar"></div>
+    <div style="flex:1; display:flex; flex-direction:column; overflow:hidden">
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="empty" id="empty" style="display:none">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>
+          </svg>
+          <p>No matching rows</p>
+        </div>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
