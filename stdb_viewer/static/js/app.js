@@ -586,6 +586,7 @@ async function runSQL() {
 
     let html = '<div class="sql-meta"><b>' + data.row_count.toLocaleString() + '</b> rows returned';
     if (data.truncated) html += ' (truncated to 2,000)';
+    html += '<button class="btn btn-sql-export" id="sqlExportBtn">↓ Export CSV</button>';
     html += '</div>';
 
     html += '<table><thead><tr>';
@@ -609,6 +610,11 @@ async function runSQL() {
     html += '</tbody></table>';
     results.innerHTML = html;
 
+    // Store result for export
+    _lastSqlResult = data;
+    const exportBtn = document.getElementById('sqlExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', exportSQLResultCSV);
+
   } catch (e) {
     results.innerHTML = `<div class="sql-error">Network error: ${esc(e.message)}</div>`;
   } finally {
@@ -618,4 +624,33 @@ async function runSQL() {
 }
 
 // Init the SQL console after main init
+let _lastSqlResult = null;
+
+function exportSQLResultCSV() {
+  if (!_lastSqlResult || !_lastSqlResult.columns.length) return;
+  const { columns, rows } = _lastSqlResult;
+
+  const csvRows = [];
+  // Header
+  csvRows.push(columns.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(','));
+  // Data
+  for (const row of rows) {
+    csvRows.push(columns.map(c => {
+      const v = row[c];
+      if (v == null) return '';
+      return '"' + String(v).replace(/"/g, '""') + '"';
+    }).join(','));
+  }
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sql_query_result.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 initSQLConsole();
