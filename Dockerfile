@@ -1,12 +1,17 @@
 FROM python:3.12-slim
 
 WORKDIR /app
+
+# Copy application code
 COPY stdb_viewer/ stdb_viewer/
 COPY server.py .
 
-# Place your .db files next to this Dockerfile before building,
-# or mount them at runtime: docker run -v /path/to/data:/app/data ...
+# Copy database files (place your .db files in the repo root before building)
 COPY *.db ./
 
-EXPOSE 8025
-CMD ["python", "server.py"]
+# Cloud Run injects PORT env var (default 8080)
+ENV PORT=8080
+EXPOSE ${PORT}
+
+# Use --no-browser and read PORT from environment
+CMD python server.py --port ${PORT} --no-browser
