@@ -4,7 +4,8 @@
 # Prerequisites:
 #   1. Google Cloud SDK installed (https://cloud.google.com/sdk/docs/install)
 #   2. A GCP project with billing enabled (free tier is sufficient)
-#   3. At least one .db file in the repo root
+#   3. Build permissions granted (see README.md Step 3)
+#   4. At least one .db file in the repo root
 #
 # Usage:
 #   chmod +x deploy.sh
@@ -12,7 +13,7 @@
 
 set -euo pipefail
 
-# ---- Configuration (edit these) ----
+# ---- Configuration (edit these or set via environment) ----
 PROJECT_ID="${GCP_PROJECT_ID:-}"
 REGION="${GCP_REGION:-us-central1}"          # us-central1 is free-tier eligible
 SERVICE_NAME="${GCP_SERVICE_NAME:-sqlite-db-viewer}"
@@ -34,8 +35,15 @@ if [ -z "$PROJECT_ID" ]; then
 fi
 
 if ! ls *.db 1>/dev/null 2>&1; then
-    echo "WARNING: No .db files found in repo root."
+    echo "ERROR: No .db files found in repo root."
     echo "  Place your SQLite database files here before deploying."
+    exit 1
+fi
+
+if [ ! -f ".gcloudignore" ]; then
+    echo "WARNING: .gcloudignore not found. gcloud will fall back to .gitignore,"
+    echo "  which excludes *.db files. Your databases won't be included in the build."
+    echo "  See README.md for the correct .gcloudignore file."
     exit 1
 fi
 
@@ -43,6 +51,11 @@ echo "=== Deploying to Cloud Run ==="
 echo "  Project:  $PROJECT_ID"
 echo "  Region:   $REGION"
 echo "  Service:  $SERVICE_NAME"
+echo "  Databases:"
+for db in *.db; do
+    size=$(du -h "$db" | cut -f1)
+    echo "    - $db ($size)"
+done
 echo ""
 
 # Enable required APIs (idempotent)

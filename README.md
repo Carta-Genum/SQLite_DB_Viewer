@@ -44,30 +44,29 @@ This section walks you through deploying stdb-viewer to Google Cloud Run so anyo
 ### Prerequisites
 
 - A Google Cloud account ([sign up free](https://cloud.google.com/free))
-- A GCP project with billing enabled (free tier — you won't be charged within limits)
 - The `gcloud` CLI installed (see below)
 - At least one `.db` file in the repo root
 
-### Install Google Cloud CLI on WSL / Linux
+### Step 1: Install Google Cloud CLI (WSL / Linux)
 
 ```bash
-# 1. Install dependencies
+# Install dependencies
 sudo apt-get update
 sudo apt-get install apt-transport-https ca-certificates gnupg curl -y
 
-# 2. Add Google's public key
+# Add Google's public key
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
   sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
 
-# 3. Add the Cloud SDK repo
+# Add the Cloud SDK repo
 echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] \
   https://packages.cloud.google.com/apt cloud-sdk main" | \
   sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
 
-# 4. Install
+# Install
 sudo apt-get update && sudo apt-get install google-cloud-cli -y
 
-# 5. Initialize and log in
+# Initialize and log in
 gcloud init
 ```
 
@@ -79,27 +78,72 @@ Verify the installation:
 gcloud --version
 ```
 
-### Set Up Your GCP Project
+### Step 2: Set Up Your GCP Project
 
-If you don't have a project yet, create one at [console.cloud.google.com](https://console.cloud.google.com) → **New Project**. Then enable billing on it (required even for free tier — go to **Billing** in the console sidebar and link a billing account).
+Create a project at [console.cloud.google.com](https://console.cloud.google.com) → **New Project** (or use an existing one).
+
+**Enable billing** — required even for free tier. Go to **Billing** in the console sidebar and link a billing account. You won't be charged within free tier limits.
 
 ```bash
 gcloud config set project YOUR_PROJECT_ID
 ```
 
-### Create the Branch and Deploy
+> **Finding your Project ID:** Go to [console.cloud.google.com](https://console.cloud.google.com) — the Project ID is shown on the dashboard and in the project selector dropdown at the top. It looks like `my-project-123456`. You can also run `gcloud projects list` to see all your projects.
+
+### Step 3: Grant Build Permissions
+
+Newer GCP projects require you to explicitly grant the default service account the permissions needed to build and deploy containers. Without this step you'll get a `PERMISSION_DENIED` error during deploy.
+
+Find your **Project Number** (not Project ID) — it's shown on the console dashboard or in the output of `gcloud projects list`.
 
 ```bash
-# Switch to the cloud deployment branch
-git checkout main && git pull
-git checkout -b feature/googlecloud
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) \
+  --format='value(projectNumber)')
 
-# Make sure your .db files are in the repo root, then deploy
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/cloudbuild.builds.builder"
+
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/storage.objectViewer"
+
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
+```
+
+Wait about 30 seconds for the permissions to propagate before deploying.
+
+### Step 4: Deploy
+
+Make sure your `.db` files are in the repo root, then:
+
+```bash
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
 The script enables the required APIs, builds the container image, and deploys to Cloud Run. At the end it prints your public URL.
+
+> **Important:** The `.gcloudignore` file in this repo is configured to include `*.db` files in cloud builds (even though `.gitignore` excludes them from git). This means your local `.db` files get uploaded and baked into the container image. Make sure the databases you want deployed are in the repo root before running `deploy.sh`.
+
+### Updating or Adding Databases
+
+The `.db` files are baked into the container image at build time. To update or add databases:
+
+```bash
+# Copy your new or updated database files into the repo root
+cp /path/to/new_data.db .
+cp /path/to/updated_existing.db .
+
+# Redeploy (this rebuilds the container with the new files)
+./deploy.sh
+```
+
+There is no need to commit the `.db` files to git — the deploy script uploads everything in the repo root that isn't excluded by `.gcloudignore`, and `.gcloudignore` allows `*.db` files through. The rebuild typically takes 1–2 minutes.
+
+To remove a database from the deployment, simply delete the `.db` file from the repo root and redeploy.
 
 ### Manual Deploy (Without the Script)
 
@@ -118,15 +162,6 @@ gcloud run deploy sqlite-db-viewer \
     --min-instances 0 \
     --max-instances 1 \
     --port 8080
-```
-
-### Updating Your Database
-
-The `.db` file is baked into the container image. To update, just copy the new file and redeploy:
-
-```bash
-cp /path/to/updated/data.db .
-gcloud run deploy sqlite-db-viewer --source . --region us-central1
 ```
 
 ### Restricting Access
@@ -149,6 +184,18 @@ gcloud run services add-iam-policy-binding sqlite-db-viewer \
 ### Free Tier Limits
 
 Google Cloud Run free tier includes monthly: 2 million requests, 180,000 vCPU-seconds, 360,000 GiB-seconds, and 1 GB egress to North America. With `min-instances 0` the service scales to zero when idle, so you consume resources only during active use.
+
+### Troubleshooting
+
+**`PERMISSION_DENIED` / service account errors** — You probably skipped Step 3. Grant the build permissions and wait 30 seconds before retrying.
+
+**`FAILED_PRECONDITION: Billing account not found`** — Enable billing on your project at [console.cloud.google.com/billing](https://console.cloud.google.com/billing). A billing account is required even for free tier.
+
+**`COPY failed: no source files were specified`** — Your `.db` files aren't reaching the build. Make sure `.gcloudignore` exists in the repo root and does NOT list `*.db`. Without `.gcloudignore`, gcloud falls back to `.gitignore` which excludes `*.db`.
+
+**`Container failed to start and listen on PORT`** — Usually means no `.db` files were found inside the container, so the app exits immediately. Verify your `.db` files are in the repo root and that `.gcloudignore` is present. You can also check container logs: `gcloud run services logs read sqlite-db-viewer --region us-central1`
+
+**502 Bad Gateway after successful deploy** — The app might be starting slowly with a large database. Increase timeout: add `--timeout 600` to the deploy command.
 
 ---
 
@@ -175,7 +222,7 @@ docker run -p 8025:8025 stdb-viewer
 
 ```
 stdb-viewer/
-├── server.py                    # Convenience launcher (just delegates to package)
+├── server.py                    # Convenience launcher (delegates to package)
 ├── stdb_viewer/
 │   ├── __init__.py              # Package metadata
 │   ├── __main__.py              # CLI entry point & HTTP server bootstrap
@@ -191,7 +238,7 @@ stdb-viewer/
 ├── tests/
 │   └── test_database.py         # Unit tests for the database layer
 ├── deploy.sh                    # One-command Cloud Run deployment
-├── .gcloudignore                # Files excluded from cloud builds
+├── .gcloudignore                # Files excluded from cloud builds (allows .db through)
 ├── requirements.txt             # Dev/test deps (core has zero deps)
 ├── pyproject.toml               # Modern Python packaging
 ├── Dockerfile                   # Container deployment (local Docker & Cloud Run)
