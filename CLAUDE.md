@@ -47,7 +47,10 @@ Cloud Scheduler (Monday 06:00 UTC)
 - `infra/deploy-viewer.sh` — build + deploy viewer Cloud Run Service
 
 ## Branch Model
-No `devel` branch. Feature branches from `main`.
+```
+feature/* --PR--> devel --PR--> main
+```
+All feature branches from `devel`. Tags on `main` only.
 
 ## Quick Commands
 ```bash
