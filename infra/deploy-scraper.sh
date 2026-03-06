@@ -69,6 +69,13 @@ else
         --oauth-service-account-email="${SCRAPER_SA}"
 fi
 
+# 4. Grant run.invoker so Cloud Scheduler can trigger the job
+echo "--- Granting run.invoker to scraper SA ---"
+gcloud run jobs add-iam-policy-binding st-scraper \
+    --region="${REGION}" \
+    --member="serviceAccount:${SCRAPER_SA}" \
+    --role="roles/run.invoker"
+
 echo ""
 echo "=== Scraper deployed ==="
 echo ""

@@ -35,9 +35,9 @@ def download_db():
     blob = bucket.blob(db_filename)
 
     if not blob.exists():
-        print(f"Warning: gs://{bucket_name}/{db_filename} does not exist yet",
+        print(f"Error: gs://{bucket_name}/{db_filename} does not exist in bucket",
               file=sys.stderr)
-        return
+        sys.exit(1)
 
     blob.download_to_filename(dest_path)
     size_mb = os.path.getsize(dest_path) / (1024 * 1024)
