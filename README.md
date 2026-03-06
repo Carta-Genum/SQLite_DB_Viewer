@@ -32,7 +32,7 @@ Open **http://localhost:8025** in your browser. That's it.
 - **CSV export** — downloads filtered results.
 - **Row detail panel** — click any row to see all fields.
 - **Multiple databases** — dropdown switcher when serving more than one .db file.
-- **Zero external dependencies** — Python 3.8+ standard library only.
+- **Zero external dependencies** — Python 3.8+ standard library only (cloud deployment adds `google-cloud-storage`).
 
 ## Project Structure
 
@@ -51,11 +51,18 @@ stdb-viewer/
 │       │   └── style.css        # All styles, light/dark theme tokens
 │       └── js/
 │           └── app.js           # Client-side: state, rendering, API calls
+├── cloud/
+│   └── startup.py               # GCS download on container startup
+├── infra/
+│   ├── setup.sh                 # One-time GCP provisioning
+│   ├── deploy-scraper.sh        # Build + deploy scraper Cloud Run Job
+│   └── deploy-viewer.sh         # Build + deploy viewer Cloud Run Service
 ├── tests/
 │   └── test_database.py         # Unit tests for the database layer
 ├── requirements.txt             # Dev/test deps (core has zero deps)
 ├── pyproject.toml               # Modern Python packaging
 ├── Dockerfile                   # Container deployment
+├── .dockerignore                # Excludes .git, .db, .env from builds
 ├── .gitignore
 └── README.md
 ```
@@ -91,11 +98,35 @@ python server.py -d data.db
 nohup python server.py -d data.db -p 8025 > viewer.log 2>&1 &
 ```
 
-**Docker** — copy your .db files next to the Dockerfile, then:
+**Docker (local)** — mount your .db files at runtime:
 ```bash
 docker build -t stdb-viewer .
-docker run -p 8025:8025 stdb-viewer
+docker run -p 8025:8025 -v /path/to/data.db:/app/data.db stdb-viewer
 ```
+
+### Cloud Deployment (GCP)
+
+The viewer can be deployed to GCP Cloud Run with a GCS-backed database that updates weekly via a companion scraper job.
+
+```
+Cloud Scheduler (Monday 06:00 UTC)
+  → Cloud Run Job (scraper): downloads .db from GCS, runs pipeline, uploads
+  → GCS bucket: carta-genum-st-data
+  → Cloud Run Service (viewer): downloads .db on startup, serves on port 8025
+```
+
+```bash
+# One-time setup (APIs, bucket, service accounts, secrets)
+bash infra/setup.sh
+
+# Deploy the scraper job + weekly schedule
+bash infra/deploy-scraper.sh /path/to/scraper/repo
+
+# Deploy the viewer service (public URL)
+bash infra/deploy-viewer.sh
+```
+
+See `infra/` scripts for details. The Dockerfile installs `google-cloud-storage` for GCS access; when `GCS_BUCKET` is not set, the download is skipped (local dev mode).
 
 ## Configuration
 

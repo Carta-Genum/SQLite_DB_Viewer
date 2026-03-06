@@ -1,12 +1,12 @@
 FROM python:3.12-slim
 
 WORKDIR /app
+
+RUN pip install --no-cache-dir google-cloud-storage
+
 COPY stdb_viewer/ stdb_viewer/
 COPY server.py .
-
-# Place your .db files next to this Dockerfile before building,
-# or mount them at runtime: docker run -v /path/to/data:/app/data ...
-COPY *.db ./
+COPY cloud/ cloud/
 
 EXPOSE 8025
-CMD ["python", "server.py"]
+CMD ["sh", "-c", "python cloud/startup.py && python server.py --no-browser"]
