@@ -3,19 +3,29 @@
 #
 # Prerequisites:
 #   - infra/setup.sh has been run
+#   - Database file(s) already uploaded to GCS bucket(s)
 #
 # Usage: bash infra/deploy-viewer.sh
 set -euo pipefail
 
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
 REGION="europe-west4"
-AR_REPO="carta-genum-docker"
+AR_REPO="st-viewer-docker"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/st-viewer:latest"
-BUCKET_NAME="carta-genum-st-data"
 VIEWER_SA="st-viewer@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# ---- Database configuration ----
+# Comma-separated list of bucket:filename pairs.
+# The viewer will download all of these at startup and serve them
+# with a dropdown switcher in the UI.
+#
+# To add a second database later, just append it:
+#   GCS_DATABASES="samples_scraper:spatial_transcriptomics.db,other_bucket:other.db"
+GCS_DATABASES="samples_scraper:spatial_transcriptomics.db"
 
 echo "=== Deploying ST Viewer ==="
 echo "Image: ${IMAGE}"
+echo "Databases: ${GCS_DATABASES}"
 echo ""
 
 # 1. Build and push image via Cloud Build
@@ -30,7 +40,7 @@ gcloud run deploy st-viewer \
     --image="${IMAGE}" \
     --region="${REGION}" \
     --service-account="${VIEWER_SA}" \
-    --set-env-vars="GCS_BUCKET=${BUCKET_NAME},DB_FILENAME=spatial_transcriptomics.db" \
+    --set-env-vars="GCS_DATABASES=${GCS_DATABASES}" \
     --port=8025 \
     --memory=512Mi \
     --cpu=1 \
