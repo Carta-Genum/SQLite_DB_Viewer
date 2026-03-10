@@ -21,7 +21,7 @@ VIEWER_SA="st-viewer@${PROJECT_ID}.iam.gserviceaccount.com"
 #
 # To add a second database later, just append it:
 #   GCS_DATABASES="samples_scraper:spatial_transcriptomics.db,other_bucket:other.db"
-GCS_DATABASES="samples_scraper:spatial_transcriptomics.db"
+GCS_DATABASES="samples_scraper:spatial_transcriptomics.db,contacts_scraper:contacts.db"
 
 echo "=== Deploying ST Viewer ==="
 echo "Image: ${IMAGE}"
@@ -40,9 +40,9 @@ gcloud run deploy st-viewer \
     --image="${IMAGE}" \
     --region="${REGION}" \
     --service-account="${VIEWER_SA}" \
-    --set-env-vars="GCS_DATABASES=${GCS_DATABASES}" \
+    --set-env-vars="^;;^GCS_DATABASES=${GCS_DATABASES}" \
     --port=8025 \
-    --memory=512Mi \
+    --memory=1Gi \
     --cpu=1 \
     --min-instances=0 \
     --max-instances=2 \
