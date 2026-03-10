@@ -8,5 +8,6 @@ COPY stdb_viewer/ stdb_viewer/
 COPY server.py .
 COPY cloud/ cloud/
 
-EXPOSE 8025
-CMD ["sh", "-c", "python cloud/startup.py && python server.py --no-browser"]
+ENV PORT=8025
+EXPOSE ${PORT}
+CMD ["sh", "-c", "python cloud/startup.py && python server.py --port ${PORT} --no-browser"]

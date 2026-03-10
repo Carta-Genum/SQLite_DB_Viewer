@@ -20,6 +20,9 @@ from .handler import ViewerHandler
 
 
 def parse_args():
+    # Cloud Run sets PORT env var; use it as default if present
+    default_port = int(os.environ.get("PORT", 8025))
+
     parser = argparse.ArgumentParser(
         prog="stdb-viewer",
         description="Serve SQLite databases as a browsable web application.",
@@ -37,8 +40,8 @@ Examples:
         help="Path to a .db file (repeatable for multiple databases)",
     )
     parser.add_argument(
-        "-p", "--port", type=int, default=8025,
-        help="Port to serve on (default: 8025)",
+        "-p", "--port", type=int, default=default_port,
+        help="Port to serve on (default: %(default)s)",
     )
     parser.add_argument(
         "--host", default="0.0.0.0",
