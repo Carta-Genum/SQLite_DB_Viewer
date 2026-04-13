@@ -11,7 +11,7 @@ set -euo pipefail
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
 REGION="europe-west4"
 BUCKET_NAME="carta-genum-st-data"
-AR_REPO="carta-genum-docker"
+AR_REPO="st-viewer-docker"
 
 echo "=== GCP Setup for project: ${PROJECT_ID} ==="
 echo "Region: ${REGION}"

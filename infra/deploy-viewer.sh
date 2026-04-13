@@ -9,9 +9,9 @@ set -euo pipefail
 
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
 REGION="europe-west4"
-AR_REPO="carta-genum-docker"
+AR_REPO="st-viewer-docker"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/st-viewer:latest"
-BUCKET_NAME="carta-genum-st-data"
+BUCKET_NAME="samples_scraper"
 VIEWER_SA="st-viewer@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "=== Deploying ST Viewer ==="
