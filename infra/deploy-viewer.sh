@@ -11,7 +11,7 @@ PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
 REGION="europe-west4"
 AR_REPO="st-viewer-docker"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/st-viewer:latest"
-BUCKET_NAME="samples_scraper"
+GCS_DATABASES="samples_scraper:spatial_transcriptomics.db,contacts_scraper:contacts.db"
 VIEWER_SA="st-viewer@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "=== Deploying ST Viewer ==="
@@ -30,9 +30,9 @@ gcloud run deploy st-viewer \
     --image="${IMAGE}" \
     --region="${REGION}" \
     --service-account="${VIEWER_SA}" \
-    --set-env-vars="GCS_BUCKET=${BUCKET_NAME},DB_FILENAME=spatial_transcriptomics.db" \
+    --set-env-vars="^@^GCS_DATABASES=${GCS_DATABASES}" \
     --port=8025 \
-    --memory=512Mi \
+    --memory=1Gi \
     --cpu=1 \
     --min-instances=0 \
     --max-instances=2 \
