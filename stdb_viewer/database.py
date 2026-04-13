@@ -27,6 +27,8 @@ NEVER_FACET = frozenset({
     "dataset_name", "sample_name", "filename",
     "dataset_id", "sample_id", "geo_accession",
     "publish_date", "section_count", "gsm_count", "size_bytes",
+    # files archival columns
+    "gcs_path", "archive_error", "archived_at",
 })
 
 # Default page size

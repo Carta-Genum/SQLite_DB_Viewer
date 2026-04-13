@@ -394,6 +394,17 @@ function cellHtml(col, val) {
   if (col === 'size_bytes' && val) {
     return `<td class="mono">${fmtBytes(val)}</td>`;
   }
+  if (col === 'spatial_complete') {
+    const v = Number(val);
+    return v === 1
+      ? `<td class="bool-yes">✓</td>`
+      : `<td class="bool-no">✗</td>`;
+  }
+  if (col === 'gcs_path') {
+    const s = String(val);
+    const short = s.length > 55 ? s.slice(0, 53) + '…' : s;
+    return `<td class="mono" title="${esc(s)}">${esc(short)}</td>`;
+  }
 
   const s = String(val);
   const display = s.length > 90 ? s.slice(0, 88) + '…' : s;
