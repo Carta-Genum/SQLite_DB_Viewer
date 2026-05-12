@@ -19,7 +19,17 @@ const S = {
   facets: {},       // {col: {values: [...], numeric: bool}}
   selected: new Set(),  // row IDs currently checked for export
   theme: localStorage.getItem('stdb-theme') || 'dark',
+  adminMode: localStorage.getItem('stdb-admin') === '1',
 };
+
+// Columns whose values are long JSON / free text / log payloads.
+// Rendered as a short preview with NO `title` tooltip (huge tooltips are unreadable);
+// full content is still visible in the row-detail modal.
+const LONG_TEXT_COLS = new Set([
+  'classification_json', 'prompt', 'response',
+  'cli_args_json', 'environment_json', 'corrections',
+  'dictionary_matched', 'error_message', 'log_path',
+]);
 
 let searchTimeout = null;
 
@@ -27,6 +37,7 @@ let searchTimeout = null;
 
 async function init() {
   applyTheme(S.theme);
+  applyAdminMode(S.adminMode);
 
   document.getElementById('portInfo').textContent = location.host;
 
@@ -60,6 +71,7 @@ async function init() {
   document.getElementById('csvBtn').addEventListener('click', exportCSV);
   document.getElementById('csvSelectedBtn').addEventListener('click', exportSelected);
   document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('adminToggle').addEventListener('click', toggleAdminMode);
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target.id === 'overlay') closeModal();
   });
@@ -89,10 +101,54 @@ function toggleTheme() {
   try { localStorage.setItem('stdb-theme', S.theme); } catch {}
 }
 
+// ---- Admin tables toggle ----
+
+function applyAdminMode(on) {
+  const btn = document.getElementById('adminToggle');
+  if (!btn) return;
+  btn.classList.toggle('active', !!on);
+  btn.title = on
+    ? 'Admin tables visible — click to hide runs / validation_log'
+    : 'Show admin tables (runs, validation_log)';
+}
+
+function isVisibleTable(tableName) {
+  const meta = (S.dbMeta[S.db] || {})[tableName];
+  if (!meta) return false;
+  return S.adminMode || !meta.admin;
+}
+
+function visibleTables() {
+  const info = S.dbMeta[S.db] || {};
+  return Object.keys(info).filter(t => S.adminMode || !info[t].admin);
+}
+
+function toggleAdminMode() {
+  S.adminMode = !S.adminMode;
+  applyAdminMode(S.adminMode);
+  try { localStorage.setItem('stdb-admin', S.adminMode ? '1' : '0'); } catch {}
+
+  // If the current table just became hidden, switch to the first visible one.
+  if (S.table && !isVisibleTable(S.table)) {
+    const vis = visibleTables();
+    if (vis.length) {
+      switchTable(vis[0]);
+      return;
+    }
+  }
+  buildTabs();
+}
+
 // ---- DB / Table switching ----
 
 async function switchDB() {
-  const tables = Object.keys(S.dbMeta[S.db] || {});
+  // Hide the admin toggle if the current DB has no admin tables (legacy schemas).
+  const info = S.dbMeta[S.db] || {};
+  const hasAdmin = Object.values(info).some(t => t.admin);
+  const adminBtn = document.getElementById('adminToggle');
+  if (adminBtn) adminBtn.style.display = hasAdmin ? '' : 'none';
+
+  const tables = visibleTables();
   S.table = tables[0] || null;
   S.filters = {};
   S.search = '';
@@ -125,8 +181,9 @@ function buildTabs() {
   container.innerHTML = '';
   const info = S.dbMeta[S.db];
   for (const t of Object.keys(info)) {
+    if (info[t].admin && !S.adminMode) continue;
     const btn = document.createElement('button');
-    btn.className = 'tab' + (t === S.table ? ' on' : '');
+    btn.className = 'tab' + (t === S.table ? ' on' : '') + (info[t].admin ? ' admin' : '');
     btn.innerHTML = t + `<span class="n">${info[t].count.toLocaleString()}</span>`;
     btn.addEventListener('click', () => switchTable(t));
     container.appendChild(btn);
@@ -394,7 +451,7 @@ function cellHtml(col, val) {
   if (col === 'size_bytes' && val) {
     return `<td class="mono">${fmtBytes(val)}</td>`;
   }
-  if (col === 'spatial_complete') {
+  if (col === 'spatial_complete' || col === 'is_superseries') {
     const v = Number(val);
     return v === 1
       ? `<td class="bool-yes">✓</td>`
@@ -404,6 +461,11 @@ function cellHtml(col, val) {
     const s = String(val);
     const short = s.length > 55 ? s.slice(0, 53) + '…' : s;
     return `<td class="mono" title="${esc(s)}">${esc(short)}</td>`;
+  }
+  if (LONG_TEXT_COLS.has(col)) {
+    const s = String(val);
+    const short = s.length > 50 ? s.slice(0, 48) + '…' : s;
+    return `<td class="long-text">${esc(short)}</td>`;
   }
 
   const s = String(val);

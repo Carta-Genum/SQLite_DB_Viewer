@@ -19,6 +19,11 @@ SKIP_TABLES = frozenset({
 # Max distinct values for a column to be offered as a facet filter
 MAX_FACET_CARDINALITY = 80
 
+# Minimum average rows-per-value for a column to be useful as a facet.
+# Below this, picking any value only matches ~1 row — that's a search, not a
+# filter — so the column is excluded (e.g. run_id, timestamps, per-run counters).
+MIN_FACET_BUCKET_AVG = 2
+
 # Columns that should never become facets (unique / free-text / internal)
 NEVER_FACET = frozenset({
     "id", "description", "characteristics", "data_files",
@@ -29,7 +34,15 @@ NEVER_FACET = frozenset({
     "publish_date", "section_count", "gsm_count", "size_bytes",
     # files archival columns
     "gcs_path", "archive_error", "archived_at",
+    # long free-text / JSON / log columns from runs & validation_log
+    "classification_json", "prompt", "response",
+    "cli_args_json", "environment_json", "corrections",
+    "dictionary_matched", "error_message", "log_path",
 })
+
+# Tables that are operational/admin (hidden behind an explicit toggle in the UI).
+# Server still serves them; the client controls visibility.
+ADMIN_TABLES = frozenset({"runs", "validation_log"})
 
 # Default page size
 DEFAULT_PAGE_SIZE = 200
@@ -68,7 +81,11 @@ class Database:
         col_type = self._col_types.get(table, {}).get(col, "").upper()
         if any(t in col_type for t in ("INT", "REAL", "FLOAT", "NUM", "DOUBLE")):
             return True
-        # Covers FK columns like dataset_pk, sample_pk
+        # TEXT affinity (TEXT/CHAR/CLOB) wins over the _id/_pk suffix heuristic —
+        # otherwise text accessions like "GSE12345" get sorted as REAL → 0.
+        if any(t in col_type for t in ("TEXT", "CHAR", "CLOB")):
+            return False
+        # Fallback for empty/unknown declared types: use naming convention.
         if col.endswith("_pk") or col.endswith("_id") or col == "id":
             return True
         return False
@@ -76,6 +93,9 @@ class Database:
     def _discover_facets(self, table: str) -> list[str]:
         """Identify columns suitable for checkbox filtering."""
         facets = []
+        total = self.conn.execute(
+            f"SELECT COUNT(*) FROM [{table}]"
+        ).fetchone()[0]
         for name, _ in self.get_columns(table):
             if name in NEVER_FACET:
                 continue
@@ -85,14 +105,26 @@ class Database:
                     f"FROM [{table}] WHERE [{name}] IS NOT NULL"
                 )
                 n = cur.fetchone()["c"]
-                if 1 < n <= MAX_FACET_CARDINALITY:
-                    facets.append(name)
+                if n == 0 or n > MAX_FACET_CARDINALITY:
+                    continue
+                # A single-value column is informative for TEXT (e.g.
+                # source='GEO' across all rows) but noise for numerics
+                # (e.g. samples_seen=0 across all runs).
+                col_type = self._col_types.get(table, {}).get(name, "").upper()
+                is_text = any(t in col_type for t in ("TEXT", "CHAR", "CLOB"))
+                if n == 1 and not is_text:
+                    continue
+                # Drop near-unique multi-value columns: each value must
+                # bucket MIN_FACET_BUCKET_AVG rows on average.
+                if n > 1 and total > 0 and n * MIN_FACET_BUCKET_AVG > total:
+                    continue
+                facets.append(name)
             except sqlite3.OperationalError:
                 pass
         return facets
 
     def get_table_info(self) -> dict:
-        """Return summary {table: {count, columns}} for all visible tables."""
+        """Return summary {table: {count, columns, admin}} for all visible tables."""
         info = {}
         for t in self.tables:
             cnt = self.conn.execute(
@@ -101,6 +133,7 @@ class Database:
             info[t] = {
                 "count": cnt,
                 "columns": self.get_column_names(t),
+                "admin": t in ADMIN_TABLES,
             }
         return info
 
