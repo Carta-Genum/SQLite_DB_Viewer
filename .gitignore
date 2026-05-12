@@ -6,6 +6,9 @@ dist/
 build/
 .eggs/
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 .venv/
 venv/
 .env
