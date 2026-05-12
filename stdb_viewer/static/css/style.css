@@ -119,6 +119,28 @@ header h1 {
 .theme-toggle .icon { font-size: 14px; color: var(--txm); display: flex; align-items: center; }
 .theme-toggle .icon svg { display: block; }
 
+/* Admin-mode toggle reuses .theme-toggle layout; "on" state gets accent color */
+.admin-toggle.active {
+  color: var(--ac);
+  border-color: var(--sel-bd);
+  background: var(--acd);
+}
+.admin-toggle.active .icon { color: var(--ac); }
+.admin-toggle.active:hover { border-color: var(--ac); }
+
+/* Tabs flagged as admin show a faint dot so they're distinguishable */
+.tab.admin::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--org);
+  margin-right: 5px;
+  vertical-align: 1px;
+  opacity: .8;
+}
+
 .port-info {
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
@@ -441,6 +463,12 @@ tr.row-selected td {
 td.null { color: var(--txm); font-style: italic; }
 td.bool-yes { color: #4ade80; font-weight: 600; text-align: center; }
 td.bool-no  { color: var(--txm); text-align: center; }
+td.long-text {
+  color: var(--txm);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  font-style: italic;
+}
 td.mono {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10.5px;
