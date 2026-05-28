@@ -60,7 +60,7 @@ class TestDatabaseDiscovery:
 
     def test_facets_detected(self, sample_db):
         db = Database(sample_db)
-        facets = db.facets["experiments"]
+        facets = db.get_facets("experiments")
         # organism, technology, tissue should be facets (2-3 distinct values)
         assert "organism" in facets
         assert "technology" in facets
@@ -74,16 +74,112 @@ class TestFacetValues:
     def test_facet_values(self, sample_db):
         db = Database(sample_db)
         facets = db.get_facet_values("experiments")
-        organisms = {v["value"] for v in facets["organism"]}
+        organisms = {v["value"] for v in facets["organism"]["values"]}
         assert organisms == {"Mouse", "Human"}
 
     def test_facet_counts(self, sample_db):
         db = Database(sample_db)
         facets = db.get_facet_values("experiments")
-        tech_counts = {v["value"]: v["count"] for v in facets["technology"]}
+        tech_counts = {
+            v["value"]: v["count"] for v in facets["technology"]["values"]
+        }
         assert tech_counts["Visium"] == 3
         assert tech_counts["MERFISH"] == 2
         assert tech_counts["CosMx"] == 1
+
+
+@pytest.fixture
+def ontology_db(tmp_path):
+    """Database mirroring the production schema: human-readable annotation
+    columns alongside their machine-readable ontology CURIE twins, plus a
+    pathology vocabulary just above the old cardinality cap (80)."""
+    db_path = tmp_path / "onto.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE datasets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT,
+            organism TEXT,
+            organism_ncbi_taxon_id TEXT,
+            tissue_type TEXT,
+            tissue_uberon_id TEXT,
+            pathology TEXT,
+            pathology_mondo_id TEXT
+        )
+    """)
+    rows = []
+    # 90 distinct pathology terms (above MAX_FACET_CARDINALITY pre-fix = 80),
+    # each appearing in >=2 rows so it survives the bucket-average filter.
+    for i in range(90):
+        for _ in range(3):
+            rows.append((
+                "GEO", "Human", "NCBITaxon:9606",
+                "lung", "UBERON:0002048",
+                f"disease_{i:03d}", f"MONDO:{i:07d}",
+            ))
+    conn.executemany(
+        "INSERT INTO datasets (source, organism, organism_ncbi_taxon_id, "
+        "tissue_type, tissue_uberon_id, pathology, pathology_mondo_id) "
+        "VALUES (?,?,?,?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
+class TestOntologyFacets:
+    def test_ontology_id_columns_excluded(self, ontology_db):
+        facets = Database(ontology_db).get_facets("datasets")
+        assert "tissue_uberon_id" not in facets
+        assert "pathology_mondo_id" not in facets
+        assert "organism_ncbi_taxon_id" not in facets
+
+    def test_human_readable_columns_kept(self, ontology_db):
+        facets = Database(ontology_db).get_facets("datasets")
+        # source is single-value TEXT — kept; organism/tissue_type are facets
+        assert "source" in facets
+        assert "organism" in facets
+        assert "tissue_type" in facets
+
+    def test_pathology_vocabulary_above_old_cap_is_offered(self, ontology_db):
+        # 90 distinct terms would have been dropped by the old cap of 80.
+        facets = Database(ontology_db).get_facets("datasets")
+        assert "pathology" in facets
+
+
+@pytest.fixture
+def samples_db(tmp_path):
+    """samples table with a high-cardinality tissue vocabulary (> cap)."""
+    db_path = tmp_path / "samples.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE samples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organism TEXT, tissue TEXT, region TEXT, disease TEXT
+        )
+    """)
+    rows = []
+    for i in range(150):  # 150 distinct tissues — well above the cap
+        for _ in range(2):
+            rows.append(("Human", f"tissue_{i:03d}", f"region_{i:03d}",
+                         f"disease_{i:03d}"))
+    conn.executemany(
+        "INSERT INTO samples (organism, tissue, region, disease) VALUES (?,?,?,?)",
+        rows,
+    )
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
+class TestForceFacets:
+    def test_high_cardinality_samples_columns_offered(self, samples_db):
+        facets = Database(samples_db).get_facets("samples")
+        assert "tissue" in facets
+        assert "region" in facets
+        assert "disease" in facets
+        assert "organism" in facets
 
 
 class TestQuery:

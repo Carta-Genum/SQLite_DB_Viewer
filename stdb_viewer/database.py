@@ -6,6 +6,7 @@ full-text search, sorting, and pagination — all server-side.
 """
 
 import sqlite3
+import threading
 from pathlib import Path
 
 # ---- Configuration ----
@@ -16,8 +17,11 @@ SKIP_TABLES = frozenset({
     "sqlite_stat2", "sqlite_stat3", "sqlite_stat4",
 })
 
-# Max distinct values for a column to be offered as a facet filter
-MAX_FACET_CARDINALITY = 80
+# Max distinct values for a column to be offered as a facet filter.
+# Set above the typical pathology/tissue vocabulary size so human-readable
+# annotation columns (e.g. datasets.pathology, ~89 terms) are offered as
+# filters rather than silently dropped.
+MAX_FACET_CARDINALITY = 100
 
 # Minimum average rows-per-value for a column to be useful as a facet.
 # Below this, picking any value only matches ~1 row — that's a search, not a
@@ -40,6 +44,22 @@ NEVER_FACET = frozenset({
     "dictionary_matched", "error_message", "log_path",
 })
 
+# Ontology cross-reference columns hold machine-readable CURIE IDs
+# (e.g. UBERON:0002048, MONDO:0005061, NCBITaxon:9606) that mirror a
+# human-readable column (tissue, pathology, organism). They are low
+# cardinality and would otherwise pass facet detection, surfacing as
+# filters in place of the human-friendly terms — so exclude them by suffix.
+ONTOLOGY_ID_SUFFIXES = (
+    "_uberon_id", "_mondo_id", "_ncbi_taxon_id", "_efo_id", "_cl_id",
+)
+
+# Columns offered as facets even though their distinct count exceeds
+# MAX_FACET_CARDINALITY. These are high-value biological vocabularies the UI
+# makes usable via a type-to-filter search box inside the facet group.
+FORCE_FACET = {
+    "samples": frozenset({"tissue", "region", "disease"}),
+}
+
 # Tables that are operational/admin (hidden behind an explicit toggle in the UI).
 # Server still serves them; the client controls visibility.
 ADMIN_TABLES = frozenset({"runs", "validation_log"})
@@ -54,11 +74,31 @@ class Database:
     def __init__(self, path: str):
         self.path = path
         self.name = Path(path).stem
-        self.conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-        self.conn.row_factory = sqlite3.Row
+        self._local = threading.local()
         self.tables = self._discover_tables()
         self._col_types = {t: dict(self.get_columns(t)) for t in self.tables}
-        self.facets = {t: self._discover_facets(t) for t in self.tables}
+        # Facets are discovered lazily per table on first access (see
+        # get_facets). Discovering them all at startup is slow for large
+        # tables (a COUNT(DISTINCT) per column over 100k+ rows), so we defer
+        # it until a table is actually opened.
+        self.facets: dict[str, list[str]] = {}
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """Thread-local read-only connection.
+
+        ThreadingHTTPServer serves each request in its own thread, and a single
+        sqlite3 connection cannot be shared across threads. Each thread lazily
+        gets its own read-only connection; concurrent reads are safe in SQLite.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(
+                f"file:{self.path}?mode=ro", uri=True, check_same_thread=False
+            )
+            conn.row_factory = sqlite3.Row
+            self._local.conn = conn
+        return conn
 
     # ---- Introspection ----
 
@@ -93,11 +133,21 @@ class Database:
     def _discover_facets(self, table: str) -> list[str]:
         """Identify columns suitable for checkbox filtering."""
         facets = []
+        force = FORCE_FACET.get(table, frozenset())
         total = self.conn.execute(
             f"SELECT COUNT(*) FROM [{table}]"
         ).fetchone()[0]
         for name, _ in self.get_columns(table):
             if name in NEVER_FACET:
+                continue
+            # Skip ontology CURIE columns (tissue_uberon_id, pathology_mondo_id,
+            # organism_ncbi_taxon_id, ...) in favour of their human-readable twin.
+            if name.endswith(ONTOLOGY_ID_SUFFIXES):
+                continue
+            # Force-included high-cardinality vocabularies bypass the cap; the
+            # UI makes them usable with a per-facet search box.
+            if name in force:
+                facets.append(name)
                 continue
             try:
                 cur = self.conn.execute(
@@ -139,6 +189,18 @@ class Database:
 
     # ---- Facets ----
 
+    def get_facets(self, table: str) -> list[str]:
+        """Facet columns for a table, discovered lazily and cached.
+
+        Admin tables are not discovered at startup; the first request for
+        their facets computes and caches the result here.
+        """
+        cols = self.facets.get(table)
+        if cols is None:
+            cols = self._discover_facets(table)
+            self.facets[table] = cols
+        return cols
+
     def get_facet_values(self, table: str) -> dict:
         """
         Return {col: {values: [{value, count}, ...], numeric: bool}}.
@@ -147,7 +209,7 @@ class Database:
         Text columns are sorted by count DESC then value ASC.
         """
         result = {}
-        for col in self.facets.get(table, []):
+        for col in self.get_facets(table):
             is_num = self._is_numeric_column(table, col)
             if is_num:
                 order = f"CAST([{col}] AS REAL) ASC"

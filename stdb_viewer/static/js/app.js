@@ -33,6 +33,9 @@ const LONG_TEXT_COLS = new Set([
 
 let searchTimeout = null;
 
+// Facets with more options than this get a type-to-filter search box.
+const FACET_SEARCH_THRESHOLD = 12;
+
 // ---- Init ----
 
 async function init() {
@@ -231,10 +234,31 @@ function buildSidebar() {
       hdr.classList.toggle('expanded');
     });
 
+    // Scrollable list of options
+    const list = document.createElement('div');
+    list.className = 'facet-list';
+
+    // Type-to-filter box for long facets (e.g. samples.tissue, disease)
+    if (items.length > FACET_SEARCH_THRESHOLD) {
+      const search = document.createElement('input');
+      search.type = 'text';
+      search.className = 'facet-search';
+      search.placeholder = `Filter ${col.replace(/_/g, ' ')}…`;
+      search.addEventListener('input', () => {
+        const q = search.value.toLowerCase();
+        list.querySelectorAll('.fopt').forEach(lbl => {
+          lbl.style.display =
+            lbl.dataset.val.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+      opts.appendChild(search);
+    }
+
     for (const item of items) {
       const lbl = document.createElement('label');
       lbl.className = 'fopt';
       const valStr = String(item.value);
+      lbl.dataset.val = valStr;
       const checked = (S.filters[col] || []).includes(valStr);
       lbl.innerHTML =
         `<input type="checkbox" data-col="${col}" ` +
@@ -242,8 +266,9 @@ function buildSidebar() {
         `<span class="vl">${esc(valStr)}</span>` +
         `<span class="vc">${item.count}</span>`;
       lbl.querySelector('input').addEventListener('change', onFilterChange);
-      opts.appendChild(lbl);
+      list.appendChild(lbl);
     }
+    opts.appendChild(list);
 
     grp.appendChild(hdr);
     grp.appendChild(opts);
