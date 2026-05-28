@@ -59,12 +59,17 @@ docker build -t stdb-viewer . && docker run -p 8025:8025 stdb-viewer
 ```
 
 ## Active Goals
-- [ ] Run `infra/setup.sh` for one-time GCP provisioning
-- [ ] Seed DB to GCS: `gcloud storage cp spatial_transcriptomics.db gs://carta-genum-st-data/`
-- [ ] Deploy scraper and viewer to Cloud Run
+- [x] Deploy viewer to Cloud Run (live: `st-viewer`, europe-west4, project `databases-489214`)
+- [ ] Confirm scraper Cloud Run Job deployed + scheduled
 - [ ] Verify end-to-end: scraper job -> GCS -> viewer serves latest data
 
 ## Project Journal
+
+### 2026-05-28: Fix ontology-ID facets; deploy v1.1.1
+- Excluded `*_uberon_id`/`*_mondo_id`/`*_ncbi_taxon_id` from facets; raised `MAX_FACET_CARDINALITY` 80->100 (so `pathology` shows); force-included samples `tissue/region/disease` with a per-facet search box; made facet discovery lazy; switched to `ThreadingHTTPServer` + thread-local SQLite conn.
+- Learned: `main` was ahead of `devel` (admin toggle, Source filter, smarter facets already there) — always branch from `main`. Cloud Run filesystem is memory-backed, so the 1.2GB DB needs headroom -> bumped viewer to 4Gi/2cpu.
+- Deployed revision `st-viewer-00026-hkq`; tags `v1.1.0` (facets) + `v1.1.1` (memory).
+- Next: scraper job deploy/verify still pending.
 
 ### 2026-03-06: Add GCP cloud deployment infrastructure
 - Created `cloud/startup.py`, `infra/setup.sh`, `infra/deploy-scraper.sh`, `infra/deploy-viewer.sh`
