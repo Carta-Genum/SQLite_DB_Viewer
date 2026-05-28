@@ -340,7 +340,7 @@ header h1 {
 .facet-opts {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--bd);
-  max-height: 500px;
+  max-height: 320px;
   overflow: hidden;
   transition: max-height .2s ease, padding .2s ease, opacity .15s ease;
   opacity: 1;
@@ -350,6 +350,28 @@ header h1 {
   padding-bottom: 0;
   opacity: 0;
   border-bottom-color: transparent;
+}
+
+.facet-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 4px 0 6px;
+  padding: 4px 7px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--tx);
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color .12s;
+}
+.facet-search:focus { border-color: var(--ac); }
+.facet-search::placeholder { color: var(--txm); }
+
+.facet-list {
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .fopt {

@@ -12,7 +12,7 @@ import os
 import sys
 import threading
 import webbrowser
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from .database import Database
@@ -58,15 +58,17 @@ def load_databases(paths: list[str]) -> dict[str, Database]:
         if not os.path.exists(path):
             print(f"  ✗ {path} — file not found", file=sys.stderr)
             sys.exit(1)
+        print(f"  ⏳ indexing {Path(path).stem} ...", flush=True)
         db = Database(path)
         databases[db.name] = db
         table_info = db.get_table_info()
         total_rows = sum(v["count"] for v in table_info.values())
         print(f"  📂 {db.name}: {len(db.tables)} tables, {total_rows:,} rows")
         for t, info in table_info.items():
-            facets = db.facets.get(t, [])
-            print(f"     └─ {t}: {info['count']:,} rows, "
-                  f"{len(facets)} filters ({', '.join(facets)})")
+            # Facets are discovered lazily on first open, so we don't list
+            # filter counts here (computing them would slow startup).
+            tag = " [admin]" if info["admin"] else ""
+            print(f"     └─ {t}: {info['count']:,} rows{tag}")
     return databases
 
 
@@ -86,7 +88,11 @@ def main():
     databases = load_databases(db_paths)
     ViewerHandler.databases = databases
 
-    server = HTTPServer((args.host, args.port), ViewerHandler)
+    # ThreadingHTTPServer: browsers open several concurrent connections on
+    # load; a single-threaded server serializes them and stalls, leaving the
+    # page hanging. daemon_threads lets Ctrl+C exit cleanly.
+    server = ThreadingHTTPServer((args.host, args.port), ViewerHandler)
+    server.daemon_threads = True
     url = f"http://localhost:{args.port}"
     print(f"\n  🚀 Viewer running at {url}")
     print(f"     Press Ctrl+C to stop\n")
