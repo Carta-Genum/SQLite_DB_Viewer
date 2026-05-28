@@ -32,8 +32,8 @@ gcloud run deploy st-viewer \
     --service-account="${VIEWER_SA}" \
     --set-env-vars="^@^GCS_DATABASES=${GCS_DATABASES}" \
     --port=8025 \
-    --memory=1Gi \
-    --cpu=1 \
+    --memory=4Gi \
+    --cpu=2 \
     --min-instances=0 \
     --max-instances=2 \
     --allow-unauthenticated
