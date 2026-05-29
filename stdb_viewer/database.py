@@ -189,6 +189,40 @@ class Database:
 
     # ---- Facets ----
 
+    @staticmethod
+    def _normalize_facet(value) -> str:
+        """Canonical key collapsing case/underscore spelling variants.
+
+        The scraped sources spell the same value many ways
+        (homo_sapiens / Homo sapiens, Female / female). Treating
+        underscores as spaces and folding case groups these into one bucket.
+        Must stay in lock-step with the SQL expression in _normalized_sql.
+        """
+        return str(value).replace("_", " ").strip().lower()
+
+    @staticmethod
+    def _normalized_sql(col: str) -> str:
+        """SQL twin of _normalize_facet for a column reference.
+
+        NOTE: SQLite's LOWER folds ASCII only; non-ASCII letters are left
+        as-is on both sides, so matching stays consistent for those too.
+        """
+        return f"TRIM(LOWER(REPLACE([{col}], '_', ' ')))"
+
+    @staticmethod
+    def _pick_display(variants: list[tuple]) -> str:
+        """Choose the human-friendliest spelling among collapsed variants.
+
+        Prefers spaced over underscored, then capitalized, then most frequent —
+        so 'Homo sapiens' wins over 'homo_sapiens' even when the latter is
+        more common. `variants` is a list of (raw_value, count) tuples.
+        """
+        def score(item):
+            s = str(item[0])
+            return ("_" not in s, " " in s, s[:1].isupper(), item[1])
+
+        return max(variants, key=score)[0]
+
     def get_facets(self, table: str) -> list[str]:
         """Facet columns for a table, discovered lazily and cached.
 
@@ -212,19 +246,43 @@ class Database:
         for col in self.get_facets(table):
             is_num = self._is_numeric_column(table, col)
             if is_num:
-                order = f"CAST([{col}] AS REAL) ASC"
+                cur = self.conn.execute(
+                    f"SELECT [{col}] AS v, COUNT(*) AS c "
+                    f"FROM [{table}] WHERE [{col}] IS NOT NULL "
+                    f"GROUP BY [{col}] ORDER BY CAST([{col}] AS REAL) ASC"
+                )
+                values = [{"value": r["v"], "count": r["c"]} for r in cur]
             else:
-                order = "c DESC, v ASC"
-            cur = self.conn.execute(
-                f"SELECT [{col}] AS v, COUNT(*) AS c "
-                f"FROM [{table}] WHERE [{col}] IS NOT NULL "
-                f"GROUP BY [{col}] ORDER BY {order}"
-            )
-            result[col] = {
-                "values": [{"value": r["v"], "count": r["c"]} for r in cur],
-                "numeric": is_num,
-            }
+                cur = self.conn.execute(
+                    f"SELECT [{col}] AS v, COUNT(*) AS c "
+                    f"FROM [{table}] WHERE [{col}] IS NOT NULL GROUP BY [{col}]"
+                )
+                values = self._merge_text_facet(
+                    [(r["v"], r["c"]) for r in cur]
+                )
+            result[col] = {"values": values, "numeric": is_num}
         return result
+
+    def _merge_text_facet(self, rows: list[tuple]) -> list[dict]:
+        """Collapse case/underscore spelling variants of a text facet.
+
+        Groups raw (value, count) rows by their normalized key, sums counts,
+        and labels each group with its human-friendliest spelling. Result is
+        sorted by count DESC then label ASC, matching the SQL order used for
+        un-collapsed columns.
+        """
+        groups: dict[str, dict] = {}
+        for value, count in rows:
+            key = self._normalize_facet(value)
+            group = groups.setdefault(key, {"variants": [], "count": 0})
+            group["variants"].append((value, count))
+            group["count"] += count
+        merged = [
+            {"value": self._pick_display(g["variants"]), "count": g["count"]}
+            for g in groups.values()
+        ]
+        merged.sort(key=lambda x: (-x["count"], str(x["value"]).lower()))
+        return merged
 
     # ---- Query ----
 
@@ -233,6 +291,7 @@ class Database:
     ) -> tuple[str, list]:
         """Build WHERE clause + params from filters and search term."""
         col_names = self.get_column_names(table)
+        facet_cols = set(self.get_facets(table))
         wheres, params = [], []
 
         if filters:
@@ -240,8 +299,18 @@ class Database:
                 if col not in col_names:
                     continue
                 placeholders = ",".join("?" for _ in values)
-                wheres.append(f"[{col}] IN ({placeholders})")
-                params.extend(values)
+                # Text facets are displayed as collapsed, case/underscore-
+                # normalized buckets (see get_facet_values), so match the
+                # normalized column against normalized selections — otherwise
+                # a "Homo sapiens" pick would miss its "homo_sapiens" rows.
+                if col in facet_cols and not self._is_numeric_column(table, col):
+                    wheres.append(
+                        f"{self._normalized_sql(col)} IN ({placeholders})"
+                    )
+                    params.extend(self._normalize_facet(v) for v in values)
+                else:
+                    wheres.append(f"[{col}] IN ({placeholders})")
+                    params.extend(values)
 
         if search:
             clauses = []
