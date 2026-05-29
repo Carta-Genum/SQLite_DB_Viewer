@@ -182,6 +182,68 @@ class TestForceFacets:
         assert "organism" in facets
 
 
+@pytest.fixture
+def casing_db(tmp_path):
+    """samples table whose organism column has case/underscore duplicate
+    spellings of the same value, mirroring the production data."""
+    db_path = tmp_path / "casing.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE samples (id INTEGER PRIMARY KEY, organism TEXT)")
+    rows = (
+        [("homo_sapiens",)] * 7
+        + [("Homo sapiens",)] * 3
+        + [("Mus musculus",)] * 4
+        + [("mus_musculus",)] * 2
+        + [("Sus scrofa",)] * 1
+        + [("sus_scrofa",)] * 1
+        + [("blank sample",)] * 2
+    )
+    conn.executemany("INSERT INTO samples (organism) VALUES (?)", rows)
+    conn.commit()
+    conn.close()
+    return str(db_path)
+
+
+class TestFacetCasingNormalization:
+    def test_variants_collapse_into_one_bucket(self, casing_db):
+        facets = Database(casing_db).get_facet_values("samples")
+        labels = [v["value"] for v in facets["organism"]["values"]]
+        # 7 raw spellings collapse to 4 logical organisms
+        assert len(labels) == 4
+        # No snake_case twin survives next to its spaced form
+        assert "homo_sapiens" not in labels
+        assert "mus_musculus" not in labels
+        assert "sus_scrofa" not in labels
+
+    def test_collapsed_counts_are_summed(self, casing_db):
+        facets = Database(casing_db).get_facet_values("samples")
+        counts = {v["value"]: v["count"] for v in facets["organism"]["values"]}
+        assert counts["Homo sapiens"] == 10  # 7 + 3
+        assert counts["Mus musculus"] == 6   # 4 + 2
+        assert counts["Sus scrofa"] == 2     # 1 + 1
+        assert counts["blank sample"] == 2
+
+    def test_display_label_prefers_human_friendly_spelling(self, casing_db):
+        facets = Database(casing_db).get_facet_values("samples")
+        labels = {v["value"] for v in facets["organism"]["values"]}
+        # spaced, capitalized form chosen over snake_case even when the
+        # snake_case variant is more frequent (homo_sapiens=7 > Homo sapiens=3)
+        assert "Homo sapiens" in labels
+        assert "Mus musculus" in labels
+
+    def test_filter_by_canonical_label_matches_all_variants(self, casing_db):
+        db = Database(casing_db)
+        _, total, _ = db.query("samples", filters={"organism": ["Homo sapiens"]})
+        assert total == 10  # both "Homo sapiens" and "homo_sapiens" rows
+
+    def test_filter_is_case_and_underscore_insensitive(self, casing_db):
+        db = Database(casing_db)
+        # client could echo back any variant spelling; all must match the group
+        for spelling in ("Mus musculus", "mus_musculus"):
+            _, total, _ = db.query("samples", filters={"organism": [spelling]})
+            assert total == 6, spelling
+
+
 class TestQuery:
     def test_basic_query(self, sample_db):
         db = Database(sample_db)
