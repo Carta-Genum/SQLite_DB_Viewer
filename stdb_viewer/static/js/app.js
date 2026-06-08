@@ -58,7 +58,11 @@ async function init() {
     sel.appendChild(opt);
   }
   sel.addEventListener('change', () => { S.db = sel.value; switchDB(); });
-  S.db = dbNames[0];
+  // Prefer the spatial_transcriptomics DB by default; fall back to the first.
+  const preferred = dbNames.find(n => n === 'spatial_transcriptomics')
+    || dbNames.find(n => n.includes('spatial_transcriptomics'));
+  S.db = preferred || dbNames[0];
+  sel.value = S.db;
   if (dbNames.length <= 1) sel.style.display = 'none';
 
   // Event listeners
