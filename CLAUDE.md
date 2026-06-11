@@ -76,3 +76,32 @@ docker build -t stdb-viewer . && docker run -p 8025:8025 stdb-viewer
 - Modified `Dockerfile` to download DB from GCS at runtime instead of baking it in
 - Provided scraper repo files (`Dockerfile`, `cloud/entrypoint.sh`, `cloud/gcs_sync.py`) for separate session
 - Next: Run setup.sh, seed DB, deploy both services
+
+
+---
+
+## Knowledge Base (LLM Wiki)
+
+The `knowledge/` directory is an LLM-maintained wiki (Karpathy three-layer
+pattern). The shared contract lives in `~/.claude/rules/llm-wiki.md`; the
+per-project schema lives in `knowledge/WIKI_SCHEMA.md`.
+
+**At session start**: read `knowledge/index.md` for the page catalog. For
+architectural or interface questions, consult wiki pages before answering
+from scratch.
+
+**Layer separation**: wiki stores epistemic facts ("component X has
+interface Y", "ADR-003 chose A over B because Z"). CLAUDE.md project
+journal and `knowledge/log.md` store operational events ("we shipped X on
+date Y").
+
+**Operations**: INGEST (after new sources / decisions), QUERY (when
+answering an architectural question), LINT (periodic audit for
+contradictions / orphan pages / stale claims). Each operation appends to
+`knowledge/log.md`.
+
+**Decision pages**: file under `knowledge/decisions/<YYYY-MM-DD>_<slug>.md`
+whenever a significant architectural choice is made (R↔Python pivot,
+container choice, schema change, dependency bump with semantic consequences,
+pipeline refactor). Content: WHAT decided, WHY, EVIDENCE, ALTERNATIVES
+considered.
