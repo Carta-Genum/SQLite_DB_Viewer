@@ -21,3 +21,10 @@ Append-only. One entry per INGEST / QUERY / LINT operation. See
 - missing cross-refs: literature/zhang_2008.md not linked from H3
 
 -->
+
+## [2026-06-11] lint
+- contradictions: none
+- stale claims: none
+- orphan pages: none (scaffold only)
+- missing cross-refs: none
+- notes: first lint after wiki scaffold creation; no content pages yet.
