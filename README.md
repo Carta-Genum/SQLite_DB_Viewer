@@ -59,6 +59,7 @@ stdb-viewer/
 │   └── deploy-viewer.sh         # Build + deploy viewer Cloud Run Service
 ├── tests/
 │   └── test_database.py         # Unit tests for the database layer
+├── knowledge/                   # LLM-maintained wiki (see CLAUDE.md "Knowledge Base")
 ├── requirements.txt             # Dev/test deps (core has zero deps)
 ├── pyproject.toml               # Modern Python packaging
 ├── Dockerfile                   # Container deployment

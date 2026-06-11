@@ -7,31 +7,22 @@
 ## Sources
 - [Source Registry](sources/source_registry.md) — 0 sources
 
-## Hypotheses
-<!-- Biology projects: H1, H2, …  with one-line statement -->
-
 ## Decisions
 <!-- One-line summary per filed decision, with date and slug -->
 
 ## Synthesis
-<!-- Cross-cutting writeups: mechanism models, gaps_and_leads, assessments -->
+<!-- Cross-cutting writeups: architecture notes, gaps_and_leads, assessments -->
 
 ## Entities
 
-### Genes
-<!-- One line per gene, with role in project -->
-
-### Pathways
-<!-- One line per pathway, with relevance -->
-
-### Cell types
-<!-- One line per cell type, with marker summary -->
-
-### Diseases
-<!-- One line per disease, with mechanism summary -->
-
 ### Components
-<!-- Tooling projects: one line per module/process/integration -->
+<!-- One line per UI module / query helper / package module -->
 
-## Literature
-<!-- One line per paper with short citation and key contribution -->
+### Integrations
+<!-- One line per external integration (SQLite source, hosting, GCS, etc.) -->
+
+### Data Formats
+<!-- One line per table schema the viewer expects -->
+
+### Runbooks
+<!-- One line per operational runbook (local run, deploy, etc.) -->
