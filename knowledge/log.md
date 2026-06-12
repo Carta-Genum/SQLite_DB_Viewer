@@ -28,3 +28,14 @@ Append-only. One entry per INGEST / QUERY / LINT operation. See
 - orphan pages: none (scaffold only)
 - missing cross-refs: none
 - notes: first lint after wiki scaffold creation; no content pages yet.
+
+## [2026-06-12] ingest | Migrate 1 ADR from legacy docs/decisions.md
+- source: `docs/decisions.md` (pre-migration; deleted in this PR)
+- pages touched: `decisions/2026-03-06_gcp-cloud-run-gcs-for-cloud-deployment.md` (new); `index.md` populated.
+- notes: Per cross-project legacy-memory deprecation spec. No `docs/journal_archive.md` to migrate (project never had one).
+
+## [2026-06-12] lint | Pre-PR lint pass for legacy-memory deprecation
+- contradictions: none
+- stale claims: none
+- orphan pages: none
+- missing cross-refs: none
