@@ -20,7 +20,10 @@ for stack and current phase.
 
 ## Project-specific page fields
 
-TODO.
+None beyond the canonical structure. Decision pages follow the standard
+WHAT / WHY / EVIDENCE / ALTERNATIVES sections; entity pages use the
+tooling templates at
+`~/.claude/templates/knowledge/_entity_templates/tooling/`.
 
 ## Project-specific evidence tags
 

@@ -8,7 +8,10 @@
 - [Source Registry](sources/source_registry.md) — 0 sources
 
 ## Decisions
-<!-- One-line summary per filed decision, with date and slug -->
+
+### Migrated ADRs (from legacy `docs/decisions.md`)
+
+- [2026-03-06: GCP Cloud Run + GCS for cloud deployment](decisions/2026-03-06_gcp-cloud-run-gcs-for-cloud-deployment.md)
 
 ## Synthesis
 <!-- Cross-cutting writeups: architecture notes, gaps_and_leads, assessments -->
