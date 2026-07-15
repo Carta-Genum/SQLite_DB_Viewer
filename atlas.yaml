@@ -1,0 +1,9 @@
+schema: 1
+systems:
+- name: st-viewer
+  kind: cloud-run-service
+  status: live
+  gcp_project: databases-489214
+  region: europe-west4
+  purpose: Zero-dependency Python (stdlib http.server) SQLite web viewer over the ST catalogue + contacts
+  knowledge: SQLite_DB_Viewer/ engine + infra/
